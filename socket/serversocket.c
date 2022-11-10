@@ -11,7 +11,7 @@
 
 // set to 1, IP_OPTIONS would be set on server sock
 // set to 0, IP_OPTIONS would be set on client sock
-#define SET_IPOPT_ON_SERVER_SOCK 1
+#define SET_IPOPT_ON_SERVER_SOCK 0
 
 void sig_fork(int signo) {
     int stat;
@@ -98,15 +98,6 @@ int main(){
         printf("pid %d\n", getpid()) ;
         char *buffer = (char*) calloc(buffersize, sizeof(char));
         recv(clnt_sock, buffer, buffersize, 0) ;
-
-        unsigned char recvopts[40] = {0};
-        if (getsockopt(clnt_sock, IPPROTO_IP, IP_OPTIONS, (void *)&recvopts,
-                      (socklen_t *)sizeof(recvopts)) == -1) {
-          perror("failed to get ip opts");
-        }
-        for (int i = 0; i < 10; i++) {
-          printf(" [%x] ", recvopts[i]);
-        }
 
         printf("Server receive:%s\n", buffer) ;
         int total = (int)(atoi(buffer)*atoi(buffer)) ;

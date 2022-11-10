@@ -9,6 +9,7 @@
 
 int main(int argc, char *argv[]){
  
+    //int sock = socket(AF_INET, SOCK_RAW, IPPROTO_TCP); doesn't help to read IP_OPTIONS as well..
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     
     // Ref https://stackoverflow.com/a/39298615/4123703
@@ -24,31 +25,72 @@ int main(int argc, char *argv[]){
         perror("Error setting options");
         close(sock);
     }
-
-    unsigned char recvopts[1024] = {0};
-    if(getsockopt(sock, IPPROTO_IP, IP_OPTIONS, (void*)&recvopts, (socklen_t*)sizeof(recvopts)) == -1 ){
-        perror("failed to get ip opts");
+    // This set doesn't support SOCK_STREAM, refer to
+    // https://man7.org/linux/man-pages/man7/ip.7.html section IP_RECVOPTS
+    int option = 1;
+    if (setsockopt(sock, IPPROTO_IP, IP_RECVOPTS, (char *)&option, sizeof(option)) == -1) {
+        perror("Error setting IP_RECVOPTS");
+        close(sock);
+     exit(1);
     }
-    for(int i = 0; i < 10; i ++){
-        printf("[%x] ",recvopts[i]);
-    }
+    
     struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));  
-    serv_addr.sin_family = AF_INET;  
-    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");  
-    serv_addr.sin_port = htons(5566); 
-    connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
-    char *message = (char*) calloc(strlen(argv[1])+1, sizeof(char)) ;
-    strcpy(message, argv[1]) ;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serv_addr.sin_port = htons(5566);
+    connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+
+    const char *message = "11";
     printf("send\n");
-    send(sock, message, strlen(message)+1, 0) ;
+    send(sock, message, strlen(message)+1, 0);
+    printf("send done\n");
+   { // Since IP_RECVOPTS isn't supported, `cmhdr` is always NULL
+      // just put it here to prove that it's not supported
+      struct sockaddr_in sin_recv;
+      char mes[1500];
+      struct msghdr mhdr;
+      struct iovec iov;
+      struct cmsghdr *cmhdr;
+      char control[1000];
+      int len;
+      unsigned char *recv_options;
+      unsigned int i;
+
+      mhdr.msg_name = &sin_recv;
+      mhdr.msg_namelen = sizeof(sin_recv);
+      mhdr.msg_iov = &iov;
+      mhdr.msg_iovlen = 1;
+      mhdr.msg_control = &control;
+      mhdr.msg_controllen = sizeof(control);
+      iov.iov_base = mes;
+      iov.iov_len = sizeof(mes);
+      if ((len = recvmsg(sock, &mhdr, 0)) == -1) {
+        perror("Error receiving");
+    } else {
+        cmhdr = CMSG_FIRSTHDR(&mhdr); // In SOCK_STREAM, `cmhdr` is always NULL
+        printf("cmhdr address %p\n", cmhdr);
+        while (cmhdr) {
+            if (cmhdr->cmsg_level == IPPROTO_IP &&
+                    cmhdr->cmsg_type == IP_RECVOPTS) {
+                recv_options = CMSG_DATA(cmhdr);
+                printf("options: ");
+                for (i=0;i<cmhdr->cmsg_len-sizeof(struct cmsghdr);i++) {
+                    printf("%02x ", recv_options[i]);
+                }
+                printf("\n");
+            }
+            cmhdr = CMSG_NXTHDR(&mhdr, cmhdr);
+        }
+    }
+    }
 
     char *buffer = (char*) calloc(buffersize, sizeof(char)) ;
     printf("read\n");
     read(sock, buffer, buffersize);
+
     printf("result form server: %s\n", buffer);
 
-    free(message);
     free(buffer);
     close(sock);
     return 0;
