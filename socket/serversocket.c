@@ -11,12 +11,33 @@
 
 // set to 1, IP_OPTIONS would be set on server sock
 // set to 0, IP_OPTIONS would be set on client sock
-#define SET_IPOPT_ON_SERVER_SOCK 1
+#define SET_IPOPT_ON_SERVER_SOCK 0
 
 void sig_fork(int signo) {
     int stat;
     waitpid(0, &stat, WNOHANG);
     return;
+}
+
+void get_ip_opts(int sock) {
+  // Get ip options set on sock
+  // Result: only the ip options we set are retrieved
+  struct ip_opts getopt = {0};
+  socklen_t optlen = sizeof(getopt);
+  if (getsockopt(sock, IPPROTO_IP, IP_OPTIONS, (char *)&getopt, &optlen) ==
+      -1) {
+    perror("Error get setting options");
+  }
+  printf("retrieved options dst %u\n", getopt.ip_dst.s_addr);
+  for (int i = 0; i < 4; i++) {
+    printf("retrieved options dst %u\n",
+           (getopt.ip_dst.s_addr >> (i * 2)) & 0xFF);
+  }
+  printf("====ip_opts start ====\n");
+  for (size_t i = 0; i < sizeof(getopt.ip_opts); i++) {
+    printf("%d ", getopt.ip_opts[i]);
+  }
+  printf("\n====ip_ipts end====\n");
 }
 
 int main(){
@@ -54,7 +75,11 @@ int main(){
     serv_addr.sin_family = AF_INET;  
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");  
     serv_addr.sin_port = htons(5566);  
-    bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    if(bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr))){
+      perror("Failed on bind:");
+      close(serv_sock);
+      return -1;
+    }
     listen(serv_sock, 20);
 
     struct sockaddr_in clnt_addr;
@@ -62,6 +87,9 @@ int main(){
 
     while (1) {
       int clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
+
+      printf("Get ip options from getsockopt\n");
+      get_ip_opts(clnt_sock);
 
 #if SET_IPOPT_ON_SERVER_SOCK == 0
       // //  Ref https://stackoverflow.com/a/39298615/4123703
@@ -82,6 +110,9 @@ int main(){
         return -1;
       }
 #endif
+      printf("after setsockopt, get ip options from getsockopt \n");
+      get_ip_opts(clnt_sock);
+
       // set recv and send timeout
       printf("accepted\n");
       if( setsockopt (clnt_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0 )
@@ -98,15 +129,6 @@ int main(){
         printf("pid %d\n", getpid()) ;
         char *buffer = (char*) calloc(buffersize, sizeof(char));
         recv(clnt_sock, buffer, buffersize, 0) ;
-
-        unsigned char recvopts[40] = {0};
-        if (getsockopt(clnt_sock, IPPROTO_IP, IP_OPTIONS, (void *)&recvopts,
-                      (socklen_t *)sizeof(recvopts)) == -1) {
-          perror("failed to get ip opts");
-        }
-        for (int i = 0; i < 10; i++) {
-          printf(" [%x] ", recvopts[i]);
-        }
 
         printf("Server receive:%s\n", buffer) ;
         int total = (int)(atoi(buffer)*atoi(buffer)) ;

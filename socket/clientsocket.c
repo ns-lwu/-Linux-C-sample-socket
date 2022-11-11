@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #define buffersize 1024
 
@@ -25,21 +26,13 @@ int main(int argc, char *argv[]){
         close(sock);
     }
 
-    unsigned char recvopts[1024] = {0};
-    if(getsockopt(sock, IPPROTO_IP, IP_OPTIONS, (void*)&recvopts, (socklen_t*)sizeof(recvopts)) == -1 ){
-        perror("failed to get ip opts");
-    }
-    for(int i = 0; i < 10; i ++){
-        printf("[%x] ",recvopts[i]);
-    }
     struct sockaddr_in serv_addr;
     memset(&serv_addr, 0, sizeof(serv_addr));  
     serv_addr.sin_family = AF_INET;  
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");  
     serv_addr.sin_port = htons(5566); 
     connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
-    char *message = (char*) calloc(strlen(argv[1])+1, sizeof(char)) ;
-    strcpy(message, argv[1]) ;
+    const char *message = "1";
     printf("send\n");
     send(sock, message, strlen(message)+1, 0) ;
 
@@ -48,7 +41,24 @@ int main(int argc, char *argv[]){
     read(sock, buffer, buffersize);
     printf("result form server: %s\n", buffer);
 
-    free(message);
+    // Get ip options set on sock
+    // Result: only the ip options we set are retrieved
+    struct ip_opts getopt = {0};
+    socklen_t optlen = sizeof(getopt);
+    if (getsockopt(sock, IPPROTO_IP, IP_OPTIONS, (char *)&getopt, &optlen)== -1) {
+        perror("Error get setting options");
+    }
+    printf("retrieved options dst %u\n", getopt.ip_dst.s_addr);
+    for(int i = 0; i < 4; i++){
+        printf("retrieved options dst %u\n", (getopt.ip_dst.s_addr >> (i*2)) & 0xFF );
+    }
+    printf("====ip_opts start ====\n");
+    for(size_t i = 0; i < sizeof(getopt.ip_opts); i++){
+        printf("%d ", getopt.ip_opts[i]);
+    }
+    printf("\n====ip_ipts end====\n");
+
+
     free(buffer);
     close(sock);
     return 0;
