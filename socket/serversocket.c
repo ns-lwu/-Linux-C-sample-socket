@@ -22,22 +22,19 @@ void sig_fork(int signo) {
 void get_ip_opts(int sock) {
   // Get ip options set on sock
   // Result: only the ip options we set are retrieved
-  struct ip_opts getopt = {0};
-  socklen_t optlen = sizeof(getopt);
+  unsigned char getopt[40] = {0};
+  socklen_t optlen = 0;
   if (getsockopt(sock, IPPROTO_IP, IP_OPTIONS, (char *)&getopt, &optlen) ==
       -1) {
-    perror("Error get setting options");
+    perror("Error get setting options\n");
   }
-  printf("retrieved options dst %u\n", getopt.ip_dst.s_addr);
-  for (int i = 0; i < 4; i++) {
-    printf("retrieved options dst %u\n",
-           (getopt.ip_dst.s_addr >> (i * 2)) & 0xFF);
+  printf("oplen %d", optlen);
+  printf("====opt start in dec====\n");
+
+  for (size_t i = 0; i < optlen; i++) {
+    printf("%d ", getopt[i]);
   }
-  printf("====ip_opts start ====\n");
-  for (size_t i = 0; i < sizeof(getopt.ip_opts); i++) {
-    printf("%d ", getopt.ip_opts[i]);
-  }
-  printf("\n====ip_ipts end====\n");
+  printf("\n====opt end====\n");
 }
 
 int main(){
@@ -87,8 +84,9 @@ int main(){
 
     while (1) {
       int clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
+      printf("accepted\n");
 
-      printf("Get ip options from getsockopt\n");
+      printf("Get ip options after accepted\n");
       get_ip_opts(clnt_sock);
 
 #if SET_IPOPT_ON_SERVER_SOCK == 0
@@ -100,7 +98,7 @@ int main(){
           1, // option type 1 (no-op, no length field)
           1  // option type 1 (no-op, no length field)
       };
-      printf("size %lu", sizeof(options));
+      printf("To set size %lu \n", sizeof(options));
       if (setsockopt(clnt_sock, IPPROTO_IP, IP_OPTIONS, (char *)&options,
                      sizeof(options)) == -1) {
         perror("Error setting after socket created");
@@ -110,11 +108,10 @@ int main(){
         return -1;
       }
 #endif
-      printf("after setsockopt, get ip options from getsockopt \n");
+      printf("get ip options after setsockopt\n");
       get_ip_opts(clnt_sock);
 
       // set recv and send timeout
-      printf("accepted\n");
       if( setsockopt (clnt_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0 )
         printf( "setsockopt fail\n" );
       if( setsockopt (clnt_sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0 )
