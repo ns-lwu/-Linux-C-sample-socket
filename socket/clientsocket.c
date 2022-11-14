@@ -1,68 +1,71 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <arpa/inet.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
+#include <unistd.h>
 
 #define buffersize 1024
-//socklen_t optlen = sizeof(getopt);
-void get_ip_opts(int sock) {
-  // Get ip options set on sock
-  // Result: only the ip options we set are retrieved
-  unsigned char getopt[40] = {0};
-  socklen_t optlen = 0;
-  if (getsockopt(sock, IPPROTO_IP, IP_OPTIONS, (char *)&getopt, &optlen) ==
-      -1) {
-    perror("Error get setting options\n");
-  }
-  printf("oplen %d", optlen);
-  printf("====opt start in dec====\n");
 
-  for (size_t i = 0; i < optlen; i++) {
-    printf("%d ", getopt[i]);
+
+void print_ip_opts(int sock){
+  unsigned char recvopts[40] = {0};
+  socklen_t rlen;
+  if (getsockopt(sock, IPPROTO_IP, IP_OPTIONS, recvopts, &rlen) == -1) {
+    perror("failed to get ip opts");
+    return;
   }
-  printf("\n====opt end====\n");
+  printf("rlen = %d\n", rlen);
+  for (size_t i = 0; i < rlen; i++) {
+    printf("%u: [%02x] \n", i, recvopts[i]);
+  }
 }
 
-int main(int argc, char *argv[]){
- 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    
-    // Ref https://stackoverflow.com/a/39298615/4123703
-    unsigned char options[16];
-    memset(options, 0, sizeof(options));
-    options = {
-        7,    // option type 30 (experimental)
-        15,    // option length
-        4,   // option data
-        0,
-    };
-    // unsigned char options[40] = {1};
-    if (setsockopt(sock, IPPROTO_IP, IP_OPTIONS, (char *)&options, sizeof(options))== -1) {
-        perror("Error setting options");
-        close(sock);
-    }
+int main(int argc, char *argv[]) {
 
-    struct sockaddr_in serv_addr;
-    memset(&serv_addr, 0, sizeof(serv_addr));  
-    serv_addr.sin_family = AF_INET;  
-    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");  
-    serv_addr.sin_port = htons(5566); 
-    connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
-    const char *message = "1";
-    // printf("send\n");
-    // send(sock, message, strlen(message)+1, 0) ;
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    // char *buffer = (char*) calloc(buffersize, sizeof(char)) ;
-    // printf("read\n");
-    // read(sock, buffer, buffersize);
-    // printf("result form server: %s\n", buffer);
+  struct sockaddr_in serv_addr;
+  memset(&serv_addr, 0, sizeof(serv_addr));
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  serv_addr.sin_port = htons(5566);
 
-    get_ip_opts(sock);
+//   struct sockaddr_in client_addr;
+//   memset(&client_addr, 0, sizeof(client_addr));
+//   client_addr.sin_family = AF_INET;
+//   client_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+//   client_addr.sin_port = htons(7788);
+//   bind(sock, (struct sockaddr *)&client_addr, sizeof(client_addr));
 
-    free(buffer);
-    close(sock);
-    return 0;
+  unsigned char options[16];
+  memset(options, 0, sizeof(options));
+  options[0] = 7;
+  options[1] = 15;
+  options[2] = 8;
+  options[3] = 1; // Mocking as tenant footprint
+  options[4] = 2;
+  options[5] = 3;
+  options[6] = 4;
+
+
+  if (setsockopt(sock, IPPROTO_IP, IP_OPTIONS, options, sizeof(options)) ==
+      -1) {
+    perror("Error setting options");
+    return -1;
+  }
+  connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+  usleep(100);
+  print_ip_opts(sock);
+
+//   const char *message = "1";
+//   printf("send\n");
+//   send(sock, message, strlen(message) + 1, 0);
+
+//   char *buffer = (char *)calloc(buffersize, sizeof(char));
+//   printf("read\n");
+//   read(sock, buffer, buffersize);
+//   printf("result form server: %s\n", buffer);
+  close(sock);
+  return 0;
 }
