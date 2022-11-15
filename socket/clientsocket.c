@@ -38,16 +38,16 @@ int main(int argc, char *argv[]) {
 //   client_addr.sin_port = htons(7788);
 //   bind(sock, (struct sockaddr *)&client_addr, sizeof(client_addr));
 
-  unsigned char options[16];
+  unsigned char options[20];
   memset(options, 0, sizeof(options));
-  options[0] = 7;
-  options[1] = 15;
-  options[2] = 8;
-  options[3] = 1; // Mocking as tenant footprint
-  options[4] = 2;
-  options[5] = 3;
-  options[6] = 4;
-
+  options[0] = 0;
+  // options[0] = 7;
+  // options[1] = 19;
+  // options[2] = 4;
+  // options[3] = 1; // Mocking as tenant footprint
+  // options[4] = 2;
+  // options[5] = 3;
+  // options[6] = 4;
 
   if (setsockopt(sock, IPPROTO_IP, IP_OPTIONS, options, sizeof(options)) ==
       -1) {
@@ -55,17 +55,20 @@ int main(int argc, char *argv[]) {
     return -1;
   }
   connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
-  usleep(100);
+  // usleep(100);
+
+  printf("ip options after connected");
   print_ip_opts(sock);
 
-//   const char *message = "1";
-//   printf("send\n");
-//   send(sock, message, strlen(message) + 1, 0);
+  const char *message = "1";
+  printf("send\n");
+  send(sock, message, strlen(message) + 1, 0);
 
-//   char *buffer = (char *)calloc(buffersize, sizeof(char));
-//   printf("read\n");
-//   read(sock, buffer, buffersize);
-//   printf("result form server: %s\n", buffer);
+  char *buffer = (char *)calloc(buffersize, sizeof(char));
+  printf("read\n");
+  read(sock, buffer, buffersize);
+  printf("result form server: %s\n", buffer);
+  print_ip_opts(sock);
   close(sock);
   return 0;
 }

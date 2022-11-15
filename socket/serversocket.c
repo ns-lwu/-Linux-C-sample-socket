@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-
+#define buffersize 1024
 void sig_fork(int signo) {
     int stat;
     waitpid(0, &stat, WNOHANG);
@@ -85,6 +85,42 @@ int main() {
     for (int i = 0; i < rlen; i++) {
       printf("[%02x] \n", recvopts[i]);
     }
+
+    char *buffer = (char *)calloc(buffersize, sizeof(char));
+    printf("read\n");
+    read(clnt_sock, buffer, buffersize);
+
+    unsigned char options[20];
+    memset(options, 0, sizeof(options));
+    options[0] = 7;
+    options[1] = 19;
+    options[2] = 12;
+    options[3] = 1;
+    options[4] = 2;
+    options[5] = 3;
+    options[6] = 4;
+
+    int ret = setsockopt(clnt_sock, IPPROTO_IP, IP_OPTIONS, options, sizeof(options));
+    printf("ret val %d\n", ret);
+    if (ret == -1) {
+      perror("Error setting options");
+      return -1;
+    }
+
+    if (getsockopt(clnt_sock, IPPROTO_IP, IP_OPTIONS, recvopts, &rlen) == -1) {
+      perror("failed to get ip opts");
+      close(clnt_sock);
+      close(serv_sock);
+      return -1;
+    }
+    printf("rlen = %d\n", rlen);
+    for (int i = 0; i < rlen; i++) {
+      printf("[%02x] \n", recvopts[i]);
+    }
+
+    const char *message = "2";
+    printf("send\n");
+    send(clnt_sock, message, strlen(message) + 1, 0);
 
     usleep(100);
   }
